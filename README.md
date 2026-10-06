@@ -1,13 +1,16 @@
-# Sistema de Recuperación Semántica Local (RAG)
+# Sistema de Recuperación Semántica RAG
 
-Sistema RAG (Retrieval-Augmented Generation) desarrollado en Python. El proyecto implementa un flujo completo de ingesta, fragmentación, persistencia vectorial, recuperación semántica y generación de respuestas fundamentadas exclusivamente en el contexto recuperado.
+Sistema RAG (Retrieval-Augmented Generation) desarrollado en Python. El proyecto implementa un flujo completo de ingesta, fragmentación, persistencia en Pinecone Cloud, recuperación híbrida mediante búsqueda semántica y BM25, y generación de respuestas fundamentadas exclusivamente en el contexto recuperado.
 
 ## Tecnologías utilizadas
 
 - Python 3.12
 - LangChain
 - LCEL
-- ChromaDB
+- Pinecone Cloud
+- Pinecone Integrated Inference
+- EnsembleRetriever
+- BM25
 - Google Gemini
 - Pydantic
 - python-dotenv
@@ -27,7 +30,7 @@ RAG Sistema Recuperacion Semantica Local/
 │
 ├── ingesta.py
 ├── rag.py
+├── evaluate.py
 ├── README.md
 ├── .env
-├── .gitignore
-└── vectorstore/
+└── .gitignore

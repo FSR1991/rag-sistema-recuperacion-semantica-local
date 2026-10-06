@@ -1,16 +1,20 @@
+import os
 import re
 from pathlib import Path
 from typing import List
 
-import chromadb
-from chromadb.utils import embedding_functions
 import tiktoken
+from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pinecone import Pinecone
+
+
+load_dotenv()
 
 
 DATA_DIR = Path("data")
-VECTORSTORE_DIR = Path("vectorstore")
-COLLECTION_NAME = "rag_ia"
+INDEX_NAME = os.getenv("INDEX_NAME", "rag-ia-cloud")
+NAMESPACE = "rag-ia"
 
 
 class DocumentProcessor:
@@ -74,28 +78,19 @@ def load_documents(processor: DocumentProcessor):
 
 
 def main():
-    print("Iniciando ingesta...")
+    print("Iniciando ingesta en Pinecone Cloud...")
 
-    VECTORSTORE_DIR.mkdir(exist_ok=True)
+    pinecone_api_key = os.getenv("PINECONE_API_KEY")
 
-    client = chromadb.PersistentClient(
-        path=str(VECTORSTORE_DIR)
-    )
-
-    embedding_function = embedding_functions.DefaultEmbeddingFunction()
-
-    collection = client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        embedding_function=embedding_function,
-    )
-
-    # Evita volver a procesar todo si la colección ya contiene información.
-    if collection.count() > 0:
-        print(
-            f"La colección ya contiene {collection.count()} chunks. "
-            "No se realizará una nueva ingesta."
+    if not pinecone_api_key:
+        raise RuntimeError(
+            "No se encontró PINECONE_API_KEY en el archivo .env."
         )
-        return
+
+    if not INDEX_NAME:
+        raise RuntimeError(
+            "No se encontró INDEX_NAME en el archivo .env."
+        )
 
     processor = DocumentProcessor()
     documents = load_documents(processor)
@@ -104,14 +99,39 @@ def main():
         print("No se encontraron documentos en la carpeta data.")
         return
 
-    collection.upsert(
-        ids=[item["id"] for item in documents],
-        documents=[item["document"] for item in documents],
-        metadatas=[item["metadata"] for item in documents],
-    )
+    pinecone = Pinecone(api_key=pinecone_api_key)
+    index = pinecone.Index(INDEX_NAME)
+
+    records = [
+        {
+            "_id": item["id"],
+            "chunk_text": item["document"],
+            "source": item["metadata"]["source"],
+            "chunk_index": item["metadata"]["chunk_index"],
+            "tokens": item["metadata"]["tokens"],
+        }
+        for item in documents
+    ]
+
+    batch_size = 96
+
+    for start in range(0, len(records), batch_size):
+        batch = records[start:start + batch_size]
+
+        index.upsert_records(
+            NAMESPACE,
+            batch,
+        )
+
+        print(
+            f"Batch enviado: {start + 1}-"
+            f"{min(start + batch_size, len(records))} "
+            f"de {len(records)} chunks."
+        )
 
     print(f"Ingesta completada: {len(documents)} chunks almacenados.")
-    print(f"Base vectorial: {VECTORSTORE_DIR}")
+    print(f"Índice Pinecone: {INDEX_NAME}")
+    print(f"Namespace: {NAMESPACE}")
 
 
 if __name__ == "__main__":
